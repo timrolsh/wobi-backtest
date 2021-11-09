@@ -34,6 +34,9 @@ $(LIBRARY) : $(OBJECTS)
 clean:
 	rm -rf *.o $(LIBRARY)
 
+copy_strategy: all
+	cp $(LIBRARY) /home/vagrant/Desktop/strategy_studio/backtesting/strategies_dlls/.
+
 run_backtest: all
 	cd ~/Downloads/ss_backtesting ; echo $PWD ; ./run_backtest.sh
 

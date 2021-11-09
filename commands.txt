@@ -1,0 +1,6 @@
+create_instance TestOneDiaIndexArbStrategy DiaIndexArbStrategy UIUC SIM-1001-101 dlariviere 1000000 -symbols DIA|UNH|GS|HD|MSFT|CRM|MCD|HON|BA|V|AMGN|CAT|MMM|NKE|AXP|DIS|JPM|JNJ|TRV|AAPL|WMT|PG|IBM|CVX|MRK|DOW|CSCO|KO|VZ|INTC|WBA|KD
+
+
+create_instance TestTwoDiaIndexArbStrategy DiaIndexArbStrategy UIUC SIM-1001-101 dlariviere 1000000 -symbols SPY
+
+start_backtest 2021-11-05 2021-11-05 TestTwoDiaIndexArbStrategy 1

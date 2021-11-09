@@ -104,12 +104,13 @@ void DiaIndexArbStrategy::RegisterForStrategyEvents(StrategyEventRegister* event
 void DiaIndexArbStrategy::OnTrade(const TradeDataEventMsg& msg)
 {
 	std::cout << "OnTrade(): (" << msg.adapter_time() << "): " << msg.instrument().symbol() << ": " << msg.trade().size() << " @ $" << msg.trade().price() << std::endl;
-	for (int i=0; i<1; i++)
+//	for (int i=0; i<1; i++)
 //	this->SendSimpleOrder(&msg.instrument(), 1); //buy one share every time there is a trade
 
 }
 void DiaIndexArbStrategy::OnBar(const BarEventMsg& msg)
 {
+	/*
     if (m_debug_on) {
         ostringstream str;
         str << "FINDME" << msg.instrument().symbol() << ": " << msg.bar();
@@ -133,6 +134,7 @@ void DiaIndexArbStrategy::OnBar(const BarEventMsg& msg)
     if(m_momentum->FullyInitialized()) {
 //        AdjustPortfolio(&msg.instrument(), m_position_size * side);
     }
+    */
 }
 
 void DiaIndexArbStrategy::OnOrderUpdate(const OrderUpdateEventMsg& msg)
