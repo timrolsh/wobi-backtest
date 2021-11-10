@@ -30,5 +30,10 @@
 			<type>2</type>
 			<location>/home/jdoe/Downloads/RCM/StrategyStudio/includes</location>
 		</link>
+		<link>
+			<name>text_tick_data</name>
+			<type>2</type>
+			<location>/home/vagrant/Desktop/strategy_studio/backtesting/text_tick_data</location>
+		</link>
 	</linkedResources>
 </projectDescription>

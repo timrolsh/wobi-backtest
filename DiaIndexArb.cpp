@@ -43,13 +43,17 @@ using namespace std;
 DiaIndexArbStrategy::DiaIndexArbStrategy(StrategyID strategyID, const std::string& strategyName, const std::string& groupName):
     Strategy(strategyID, strategyName, groupName),
     m_momentum_map(),
+	m_tradeprice_map(),
     m_instrument_order_id_map(),
     m_momentum(0),
     m_aggressiveness(0),
     m_position_size(100),
     m_debug_on(true),
     m_short_window_size(10),
-    m_long_window_size(30)
+    m_long_window_size(30),
+	m_dia_last_trade_price(0),
+	m_average_dia_ratio(0.0),
+	m_num_dia_ratio_observations(0)
 {
     //this->set_enabled_pre_open_data_flag(true);
     //this->set_enabled_pre_open_trade_flag(true);
@@ -97,17 +101,89 @@ void DiaIndexArbStrategy::DefineStrategyCommands()
 
 void DiaIndexArbStrategy::RegisterForStrategyEvents(StrategyEventRegister* eventRegister, DateType currDate)
 {    
-    for (SymbolSetConstIter it = symbols_begin(); it != symbols_end(); ++it) {
+    for (SymbolSetConstIter it = symbols_begin(); it != symbols_end(); ++it)
+    {
         eventRegister->RegisterForBars(*it, BAR_TYPE_TIME, 10);
     }
 }
 void DiaIndexArbStrategy::OnTrade(const TradeDataEventMsg& msg)
 {
-	std::cout << "OnTrade(): (" << msg.adapter_time() << "): " << msg.instrument().symbol() << ": " << msg.trade().size() << " @ $" << msg.trade().price() << std::endl;
-//	for (int i=0; i<1; i++)
-//	this->SendSimpleOrder(&msg.instrument(), 1); //buy one share every time there is a trade
+	std::cout << "OnTrade(): (" << msg.adapter_time() << "): " << msg.instrument().symbol() << ": " << msg.trade().size() << " @ $" << msg.trade().price(); // << std::endl;
+	/*
+	std::cout << "\t " <<
+				msg.instrument().top_quote().bid_size() << " @ $"<< msg.instrument().top_quote().bid() <<
+				msg.instrument().top_quote().ask_size() << " @ $"<< msg.instrument().top_quote().ask() <<
+				std::endl;
+	*/
+
+	//add latest price to the map
+	if ( msg.instrument().symbol().compare("DIA")!=0)
+	{
+		m_tradeprice_map[msg.instrument().symbol()] = msg.trade().price();
+	}
+	else
+	{
+		m_dia_last_trade_price = msg.trade().price();
+	}
+//	std::cout << "\t Dumping all symbols; has " << m_tradeprice_map.size() << "elements" << std::endl;
+
+
+	double djia_index = 0;
+	for (TradePriceMapIterator iter = m_tradeprice_map.begin(); iter!=m_tradeprice_map.end(); ++iter)
+	{
+//		std::cout << "\t\t" << (iter->first) << ": $" << iter->second << std::endl;
+		djia_index += iter->second;
+	}
+
+	if (m_dia_last_trade_price!=0 and m_tradeprice_map.size()==31)
+	{
+		double ratio = djia_index / m_dia_last_trade_price;
+
+		//update average ratio stats
+		double new_average_ratio = ((m_average_dia_ratio*m_num_dia_ratio_observations) + ratio) / (m_num_dia_ratio_observations+1);
+
+
+		std::cout << "; \t Dumping all symbols; " << // << m_tradeprice_map.size() << "elements; " <<
+				"sum is " << djia_index <<
+				" DIA last trade price is $" << m_dia_last_trade_price <<
+				" ratio is " << ratio << //<< std::endl;
+				" previous average ratio was " << m_average_dia_ratio <<
+				" new average ratio is " << new_average_ratio;
+
+		m_average_dia_ratio = new_average_ratio;
+		m_num_dia_ratio_observations++;
+	}
+	std::cout << std::endl;
 
 }
+
+//TODO: need to fix the data source to get these three callbacks working
+
+void DiaIndexArbStrategy::OnTopQuote(const QuoteEventMsg& msg)
+{
+	std::cout << "OnTopQuote(): (" << msg.adapter_time() << "): " << msg.instrument().symbol() << ": " <<
+		msg.instrument().top_quote().bid_size() << " @ $"<< msg.instrument().top_quote().bid() <<
+		msg.instrument().top_quote().ask_size() << " @ $"<< msg.instrument().top_quote().ask() <<
+		std::endl;
+
+}
+
+void DiaIndexArbStrategy::OnQuote(const QuoteEventMsg& msg)
+{
+	std::cout << "OnQuote(): (" << msg.adapter_time() << "): " << msg.instrument().symbol() << ": " <<
+			msg.instrument().top_quote().bid_size() << " @ $"<< msg.instrument().top_quote().bid() <<
+			msg.instrument().top_quote().ask_size() << " @ $"<< msg.instrument().top_quote().ask() <<
+			std::endl;
+}
+
+void DiaIndexArbStrategy::OnDepth(const MarketDepthEventMsg& msg)
+{
+	std::cout << "OnDepth(): (" << msg.adapter_time() << "): " << msg.instrument().symbol() << ": " <<
+				msg.instrument().top_quote().bid_size() << " @ $"<< msg.instrument().top_quote().bid() <<
+				msg.instrument().top_quote().ask_size() << " @ $"<< msg.instrument().top_quote().ask() <<
+				std::endl;
+}
+
 void DiaIndexArbStrategy::OnBar(const BarEventMsg& msg)
 {
 	/*

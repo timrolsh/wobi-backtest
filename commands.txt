@@ -4,3 +4,5 @@ create_instance TestOneDiaIndexArbStrategy DiaIndexArbStrategy UIUC SIM-1001-101
 create_instance TestTwoDiaIndexArbStrategy DiaIndexArbStrategy UIUC SIM-1001-101 dlariviere 1000000 -symbols SPY
 
 start_backtest 2021-11-05 2021-11-05 TestTwoDiaIndexArbStrategy 1
+
+start_backtest 2021-11-05 2021-11-05 TestTwoDiaIndexArbStrategy 1

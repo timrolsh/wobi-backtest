@@ -82,6 +82,9 @@ public:
     typedef boost::unordered_map<const Instrument*, Momentum> MomentumMap; 
     typedef MomentumMap::iterator MomentumMapIterator;
 
+    typedef boost::unordered_map<std::string, double> TradePriceMap;
+    typedef TradePriceMap::iterator TradePriceMapIterator;
+
 public:
     DiaIndexArbStrategy(StrategyID strategyID, const std::string& strategyName, const std::string& groupName);
     ~DiaIndexArbStrategy();
@@ -99,7 +102,7 @@ public: /* from IEventCallback */
      *
      * If the quote datasource only provides ticks that change the NBBO, top quote will be set to NBBO
      */ 
-    virtual void OnTopQuote(const QuoteEventMsg& msg){}    
+    virtual void OnTopQuote(const QuoteEventMsg& msg);
     
     /**
      * This event triggers whenever a new quote for a market center arrives from a consolidate or direct quote feed,
@@ -109,13 +112,13 @@ public: /* from IEventCallback */
      * the data source only provides quotes that affect the official NBBO, as this is not enough information to accurately
      * mantain the state of each market center's quote.
      */ 
-    virtual void OnQuote(const QuoteEventMsg& msg){}
+    virtual void OnQuote(const QuoteEventMsg& msg);
     
     /**
      * This event triggers whenever a order book message arrives. This will be the first thing that
      * triggers if an order book entry impacts the exchange's DirectQuote or Strategy Studio's TopQuote calculation.
      */ 
-    virtual void OnDepth(const MarketDepthEventMsg& msg){}
+    virtual void OnDepth(const MarketDepthEventMsg& msg);
 
     /**
      * This event triggers whenever a Bar interval completes for an instrument
@@ -181,7 +184,12 @@ private: /* from Strategy */
 private:
     boost::unordered_map<const Instrument*, Momentum> m_momentum_map;
     boost::unordered_map<const Instrument*, OrderID> m_instrument_order_id_map;
+    TradePriceMap m_tradeprice_map;
+//    boost::unordered_map<std::string, double> m_tradeprice_map;
     Momentum* m_momentum;
+    double m_dia_last_trade_price;
+    double m_average_dia_ratio;
+    int m_num_dia_ratio_observations;
     double m_max_notional;
     double m_aggressiveness;
     int m_position_size;
