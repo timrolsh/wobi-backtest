@@ -35,11 +35,11 @@ clean:
 	rm -rf *.o $(LIBRARY)
 
 copy_strategy: all
-	cp $(LIBRARY) /home/vagrant/Desktop/strategy_studio/backtesting/strategies_dlls/.
+	cp $(LIBRARY) /vagrant/ss/bt/strategies_dlls/.
 
 launch_backtest: 
 	#cd /home/vagrant/Desktop/strategy_studio/backtesting/utilities ; ./StrategyCommandLine cmd start_backtest 2021-11-05 2021-11-05 TestTwoDiaIndexArbStrategy 1
-	cd /home/vagrant/Desktop/strategy_studio/backtesting/utilities ; ./StrategyCommandLine cmd start_backtest 2021-11-05 2021-11-05 TestOneDiaIndexArbStrategy 1
+	cd /vagrant/ss/bt/utilities ; ./StrategyCommandLine cmd start_backtest 2021-11-05 2021-11-05 TestOneDiaIndexArbStrategy 1
 
 run_backtest: all
 	cd ~/Downloads/ss_backtesting ; echo $PWD ; ./run_backtest.sh
