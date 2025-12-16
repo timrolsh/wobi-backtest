@@ -11,24 +11,28 @@ else
     CFLAGS=-c -fPIC -fpermissive -O3 -std=c++11
 endif
 
-LIBPATH=../../../libs/x64
-INCLUDEPATH=../../../includes
+SDK_ROOT=/home/altmc800/ss_sdk/RCM/StrategyStudio
+LIBPATH=$(SDK_ROOT)/libs/x64
+INCLUDEPATH=$(SDK_ROOT)/includes
 
 INCLUDES=-I/usr/include -I$(INCLUDEPATH)
-LDFLAGS=$(LIBPATH)/libstrategystudio_analytics.a $(LIBPATH)/libstrategystudio.a $(LIBPATH)/libstrategystudio_transport.a $(LIBPATH)/libstrategystudio_marketmodels.a $(LIBPATH)/libstrategystudio_utilities.a $(LIBPATH)/libstrategystudio_flashprotocol.a
-LIBRARY=DiaIndexArb.so
+LDFLAGS=$(LIBPATH)/libstrategystudio_analytics.a \
+        $(LIBPATH)/libstrategystudio.a \
+        $(LIBPATH)/libstrategystudio_transport.a \
+        $(LIBPATH)/libstrategystudio_marketmodels.a \
+        $(LIBPATH)/libstrategystudio_utilities.a \
+        $(LIBPATH)/libstrategystudio_flashprotocol.a
 
-SOURCES=DiaIndexArb.cpp
-HEADERS=DiaIndexArb.h
- 
+LIBRARY=WobiSignal.so
+SOURCES=wobi-signal.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
 
-all: $(HEADERS) $(LIBRARY)
+all: $(LIBRARY)
 
-$(LIBRARY) : $(OBJECTS)
+$(LIBRARY): $(OBJECTS)
 	$(CC) -shared -Wl,-soname,$(LIBRARY).1 -o $(LIBRARY) $(OBJECTS) $(LDFLAGS)
-	
-.cpp.o: $(HEADERS)
+
+%.o: %.cpp
 	$(CC) $(CFLAGS) $(INCLUDES) $< -o $@
 
 clean:
@@ -38,15 +42,12 @@ copy_strategy: all
 	cp $(LIBRARY) /home/vagrant/ss/bt/strategies_dlls/.
 
 launch_backtest: 
-	#cd /home/vagrant/Desktop/strategy_studio/backtesting/utilities ; ./StrategyCommandLine cmd start_backtest 2021-11-05 2021-11-05 TestTwoDiaIndexArbStrategy 1
 	cd /home/vagrant/ss/bt/utilities ; ./StrategyCommandLine cmd start_backtest 2021-11-05 2021-11-05 TestOneDiaIndexArbStrategy 1
 
 run_backtest: all
-	cd ~/Downloads/ss_backtesting ; echo $PWD ; ./run_backtest.sh
+	cd ~/Downloads/ss_backtesting ; echo $$PWD ; ./run_backtest.sh
 
 output_results: 
 	export CRA_RESULT=`cd ~/Downloads/ss_backtesting ; find ./backtesting-results -name 'BACK*cra' | tail -n 1` ; \
 	echo $$CRA_RESULT
-	export TEST_VAR="hi" ; \
-	echo $$TEST_VAR
-	
+
