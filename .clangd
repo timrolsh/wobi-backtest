@@ -1,0 +1,9 @@
+CompileFlags:
+  Add:
+    - -std=c++11
+    - -fPIC
+    - -fpermissive
+    - -I/usr/include
+    - -I/home/altmc800/ss_sdk/RCM/StrategyStudio/includes
+
+
