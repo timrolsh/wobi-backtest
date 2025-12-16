@@ -1,3 +1,2 @@
-DiaIndexArb.o
-DiaIndexArb.so
-
+*.o
+*.so
