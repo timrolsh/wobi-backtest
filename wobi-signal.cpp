@@ -11,7 +11,7 @@
 #include <Utilities/Cast.h>
 #include <Utilities/utils.h>
 
-#include <math.h>
+#include <cmath>
 #include <iostream>
 #include <cassert>
 
@@ -53,7 +53,7 @@ void WobiSignalStrategy::OnResetStrategyState()
     m_last_trade_price.clear();
     m_position_map.clear();
     m_persistence_map.clear();
-    m_last_imbalance_map.clear();
+    m_last_imbalance.clear();
     m_instrument_order_id_map.clear();
 }
 
@@ -64,18 +64,12 @@ void WobiSignalStrategy::OnResetStrategyState()
 void WobiSignalStrategy::RegisterForStrategyEvents(StrategyEventRegister* eventRegister,
                                                    DateType currDate)
 {
-    UNREFERENCED_PARAMETER(currDate);
+    (void)currDate;
 
     for (SymbolSetConstIter it = symbols_begin(); it != symbols_end(); ++it)
     {
-        // Bars can be useful for PnL or summary stats.
+        eventRegister->RegisterForMarketData(*it);
         eventRegister->RegisterForBars(*it, BAR_TYPE_TIME, 1);
-
-        // Core data sources for this strategy:
-        eventRegister->RegisterForDepth(*it);      // multi-level order book
-        eventRegister->RegisterForTrade(*it);      // trade prints
-        eventRegister->RegisterForTopQuote(*it);   // NBBO/top-of-book
-        eventRegister->RegisterForQuote(*it);      // market center quotes (optional)
     }
 }
 
@@ -189,19 +183,20 @@ void WobiSignalStrategy::OnQuote(const QuoteEventMsg& msg)
 {
     // Optional: per-market-center quote logging.
     // Left intentionally light to avoid spamming output.
-    UNREFERENCED_PARAMETER(msg);
+    (void)msg;
 }
 
 void WobiSignalStrategy::OnDepth(const MarketDepthEventMsg& msg)
 {
-    // This is the core event for your order book imbalance logic.
-    EvaluateImbalanceSignal(msg);
+    const Instrument& inst = msg.instrument();
+    double imbalance = ComputeWeightedImbalance(inst);
+    EvaluateImbalanceSignal(inst, imbalance, msg.adapter_time());
 }
 
 void WobiSignalStrategy::OnBar(const BarEventMsg& msg)
 {
     // Optional: per-bar stats, logging, PnL summaries, etc.
-    UNREFERENCED_PARAMETER(msg);
+    (void)msg;
 }
 
 /*===========================================================
@@ -217,12 +212,12 @@ void WobiSignalStrategy::OnOrderUpdate(const OrderUpdateEventMsg& msg)
 
     if (msg.completes_order()) {
         // Track completion per instrument if desired
-        const Instrument& inst = msg.order().instrument();
-        m_instrument_order_id_map[&inst] = 0;
+        const Instrument* inst = msg.order().instrument();
+        m_instrument_order_id_map[inst] = 0;
 
         if (m_debug_on) {
             cout << "[OnOrderUpdate] order complete for "
-                 << inst.symbol() << endl;
+                 << inst->symbol() << endl;
         }
     }
 }
@@ -286,37 +281,49 @@ void WobiSignalStrategy::OnParamChanged(StrategyParam& param)
  *   Imbalance Logic (Core of Project)
  *===========================================================*/
 
-double WobiSignalStrategy::ComputeWeightedImbalance(const MarketDepthEventMsg& msg)
+double WobiSignalStrategy::ComputeWeightedImbalance(const Instrument& inst) const
 {
-    // TODO: Replace this stub with real multi-level book logic.
-    //
-    // Concept from proposal:
-    //  - Look at n price levels away from top of book on both sides.
-    //  - Define weights w_i = (i+1)^w for levels i = 0..n-1
-    //  - Compute a weighted imbalance I, e.g. something like:
-    //
-    //      I = ( sum_i w_i * BidSize_i - sum_i w_i * AskSize_i ) 
-    //          / ( sum_i w_i * (BidSize_i + AskSize_i) )
-    //
-    //  - I > t (entry_threshold) is bullish -> consider buy
-    //  - I < exit_threshold (often 0) -> exit the position
-    //
-    // Your parser / usage of Strategy Studio's depth book API
-    // will go here, using msg to access the depth.
+    const MarketModels::IAggrOrderBook& book = inst.aggregate_order_book();
 
-    UNREFERENCED_PARAMETER(msg);
+    // If book not initialized or missing depth, stay neutral.
+    if (book.is_initializing()) {
+        return 0.0;
+    }
 
-    // Returning 0.0 keeps everything safe until the real logic is wired in.
-    return 0.0;
+    const int levels = std::max(1, m_num_levels);
+
+    double weighted_bids = 0.0;
+    double weighted_asks = 0.0;
+    double weighted_total = 0.0;
+
+    for (int i = 0; i < levels; ++i) {
+        const MarketModels::IAggrPriceLevel* bid_lvl = book.BidPriceLevelAtLevel(i);
+        const MarketModels::IAggrPriceLevel* ask_lvl = book.AskPriceLevelAtLevel(i);
+
+        const double w = std::pow(static_cast<double>(i + 1), m_weight_exponent);
+
+        const int bid_sz = bid_lvl ? bid_lvl->size() : 0;
+        const int ask_sz = ask_lvl ? ask_lvl->size() : 0;
+
+        weighted_bids  += w * static_cast<double>(bid_sz);
+        weighted_asks  += w * static_cast<double>(ask_sz);
+        weighted_total += w * static_cast<double>(bid_sz + ask_sz);
+    }
+
+    if (weighted_total == 0.0) {
+        return 0.0;
+    }
+
+    return (weighted_bids - weighted_asks) / weighted_total;
 }
 
-void WobiSignalStrategy::EvaluateImbalanceSignal(const MarketDepthEventMsg& msg)
+void WobiSignalStrategy::EvaluateImbalanceSignal(const Instrument& inst,
+                                                 double imbalance,
+                                                 TimeType event_time)
 {
-    const Instrument& inst = msg.instrument();
     const Instrument* inst_ptr = &inst;
 
-    double imbalance = ComputeWeightedImbalance(msg);
-    m_last_imbalance_map[inst_ptr] = imbalance;
+    m_last_imbalance[inst_ptr] = imbalance;
 
     // Ensure maps have entries for this instrument
     if (m_position_map.find(inst_ptr) == m_position_map.end()) {
@@ -334,6 +341,7 @@ void WobiSignalStrategy::EvaluateImbalanceSignal(const MarketDepthEventMsg& msg)
              << " I=" << imbalance
              << " in_pos=" << in_position
              << " persistence=" << m_persistence_map[inst_ptr]
+             << " t=" << event_time
              << endl;
     }
 

@@ -13,12 +13,15 @@
 
 #include <Strategy.h>
 #include <MarketModels/Instrument.h>
-#include <MarketModels/DepthUpdate.h>
+#include <MarketModels/IAggrOrderBook.h>
+#include <MarketModels/IAggrPriceLevel.h>
+#include <MarketDepthEventMsg.h>
 #include <Utilities/ParseConfig.h>
 
 #include <boost/unordered_map.hpp>
 #include <vector>
 #include <string>
+#include <cstring>
 #include <iostream>
 
 /**
@@ -30,17 +33,6 @@ enum WobiPositionSide {
     WOBI_SIDE_LONG = 1
 };
 
-/**
- * Represents a single price level in the local book
- * (aggregated size at a given price).
- */
-struct WobiBookLevel {
-    double price;
-    int    size;
-
-    WobiBookLevel(double p = 0.0, int s = 0)
-        : price(p), size(s) {}
-};
 
 /**
  * WobiSignalStrategy
@@ -59,9 +51,6 @@ struct WobiBookLevel {
  */
 class WobiSignalStrategy : public RCM::StrategyStudio::Strategy {
 public:
-    typedef std::vector<WobiBookLevel> BookSide;
-
-    typedef boost::unordered_map<const RCM::StrategyStudio::MarketModels::Instrument*, BookSide>        BookMap;
     typedef boost::unordered_map<const RCM::StrategyStudio::MarketModels::Instrument*, WobiPositionSide> PositionMap;
     typedef boost::unordered_map<const RCM::StrategyStudio::MarketModels::Instrument*, int>              PersistenceMap;
     typedef boost::unordered_map<const RCM::StrategyStudio::MarketModels::Instrument*, double>           ImbalanceMap;
@@ -104,21 +93,13 @@ private:
     // Internal helpers
     //
 private:
-    /** Apply an incoming depth update to our local top-N book representation. */
-    void ApplyDepthUpdate(const RCM::StrategyStudio::MarketDepthEventMsg& msg);
-
-    /** Insert/update/remove a level in a single-side book (bids or asks). */
-    void UpdateBookSide(BookSide& side_vec,
-                        RCM::StrategyStudio::MarketModels::DepthSide side,
-                        double price,
-                        int size);
-
     /** Compute the weighted imbalance I for a given instrument. */
-    double ComputeWeightedImbalance(const RCM::StrategyStudio::MarketModels::Instrument& inst);
+    double ComputeWeightedImbalance(const RCM::StrategyStudio::MarketModels::Instrument& inst) const;
 
     /** Apply entry/exit rules based on the latest imbalance. */
     void EvaluateImbalanceSignal(const RCM::StrategyStudio::MarketModels::Instrument& inst,
-                                 double imbalance);
+                                 double imbalance,
+                                 RCM::StrategyStudio::TimeType event_time);
 
     /** Convenience wrappers for entering / exiting a long position. */
     void EnterLong(const RCM::StrategyStudio::MarketModels::Instrument& inst);
@@ -143,9 +124,6 @@ private:
     //
 private:
     TradePriceMap m_last_trade_price;
-
-    BookMap       m_bid_book;       ///< local top-N bids
-    BookMap       m_ask_book;       ///< local top-N asks
 
     PositionMap    m_position_map;   ///< current side per instrument
     PersistenceMap m_persistence_map;///< consecutive ticks with signal
