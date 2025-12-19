@@ -156,7 +156,7 @@ extern "C" {
 
     _STRATEGY_EXPORTS const char* GetAuthor()
     {
-        return "borak4";
+        return "dlariviere";
     }
 
     _STRATEGY_EXPORTS const char* GetAuthorGroup()
