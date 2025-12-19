@@ -11,9 +11,8 @@ else
     CFLAGS=-c -fPIC -fpermissive -O3 -std=c++11
 endif
 
-SDK_ROOT=/home/altmc800/ss_sdk/RCM/StrategyStudio
-LIBPATH=$(SDK_ROOT)/libs/x64
-INCLUDEPATH=$(SDK_ROOT)/includes
+LIBPATH=../../../libs/x64
+INCLUDEPATH=../../../includes
 
 INCLUDES=-I/usr/include -I$(INCLUDEPATH)
 LDFLAGS=$(LIBPATH)/libstrategystudio_analytics.a \
@@ -39,10 +38,10 @@ clean:
 	rm -rf *.o $(LIBRARY)
 
 copy_strategy: all
-	cp $(LIBRARY) /home/vagrant/ss/bt/strategies_dlls/.
+	cp $(LIBRARY) ~/ss/bt/strategies_dlls/.
 
 launch_backtest: 
-	cd /home/vagrant/ss/bt/utilities ; ./StrategyCommandLine cmd start_backtest 2021-11-05 2021-11-05 TestOneDiaIndexArbStrategy 1
+	cd ~/ss/bt/utilities ; ./StrategyCommandLine cmd start_backtest 2021-11-05 2021-11-05 TestOneWobiSignalStrategy 1
 
 run_backtest: all
 	cd ~/Downloads/ss_backtesting ; echo $$PWD ; ./run_backtest.sh
