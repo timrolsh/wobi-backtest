@@ -300,7 +300,7 @@ double WobiSignalStrategy::ComputeWeightedImbalance(const Instrument& inst) cons
         const MarketModels::IAggrPriceLevel* bid_lvl = book.BidPriceLevelAtLevel(i);
         const MarketModels::IAggrPriceLevel* ask_lvl = book.AskPriceLevelAtLevel(i);
 
-        const double w = std::pow(static_cast<double>(i + 1), m_weight_exponent);
+        const double w = 1.0 / std::pow(static_cast<double>(i + 1), m_weight_exponent); // changed from const double w = std::pow(static_cast<double>(i + 1), m_weight_exponent) to fix ob bug
 
         const int bid_sz = bid_lvl ? bid_lvl->size() : 0;
         const int ask_sz = ask_lvl ? ask_lvl->size() : 0;
