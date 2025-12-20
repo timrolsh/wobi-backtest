@@ -300,10 +300,11 @@ double WobiSignalStrategy::ComputeWeightedImbalance(const Instrument& inst) cons
         const MarketModels::IAggrPriceLevel* bid_lvl = book.BidPriceLevelAtLevel(i);
         const MarketModels::IAggrPriceLevel* ask_lvl = book.AskPriceLevelAtLevel(i);
 
-        const double w = std::pow(static_cast<double>(i + 1), m_weight_exponent);
+        // Invert weighting: near levels (i=0) get highest weight
+        const double w = std::pow(static_cast<double>(levels - i), m_weight_exponent);
 
-        const int bid_sz = bid_lvl ? bid_lvl->size() : 0;
-        const int ask_sz = ask_lvl ? ask_lvl->size() : 0;
+        const int bid_sz = bid_lvl ? bid_lvl->aggregate_qty() : 0;
+        const int ask_sz = ask_lvl ? ask_lvl->aggregate_qty() : 0;
 
         weighted_bids  += w * static_cast<double>(bid_sz);
         weighted_asks  += w * static_cast<double>(ask_sz);
@@ -311,6 +312,13 @@ double WobiSignalStrategy::ComputeWeightedImbalance(const Instrument& inst) cons
     }
 
     if (weighted_total == 0.0) {
+        return 0.0;
+    }
+
+    // Symmetric NULL handling: if either side is NULL, treat both as 0 (imbalance = 0)
+    const MarketModels::IAggrPriceLevel* bid_lvl_0 = book.BidPriceLevelAtLevel(0);
+    const MarketModels::IAggrPriceLevel* ask_lvl_0 = book.AskPriceLevelAtLevel(0);
+    if (!bid_lvl_0 || !ask_lvl_0) {
         return 0.0;
     }
 
