@@ -128,6 +128,7 @@ private:
     PositionMap    m_position_map;   ///< current side per instrument
     PersistenceMap m_persistence_map;///< consecutive ticks with signal
     ImbalanceMap   m_last_imbalance; ///< last computed imbalance
+    PositionMap    m_last_signal;    ///< last emitted signal to prevent duplicates
 
     boost::unordered_map<const RCM::StrategyStudio::MarketModels::Instrument*,
                          RCM::StrategyStudio::OrderID> m_instrument_order_id_map;

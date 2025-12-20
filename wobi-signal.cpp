@@ -14,6 +14,7 @@
 #include <cmath>
 #include <iostream>
 #include <cassert>
+#include <iomanip>
 
 using namespace RCM::StrategyStudio;
 using namespace RCM::StrategyStudio::MarketModels;
@@ -54,6 +55,7 @@ void WobiSignalStrategy::OnResetStrategyState()
     m_position_map.clear();
     m_persistence_map.clear();
     m_last_imbalance.clear();
+    m_last_signal.clear();
     m_instrument_order_id_map.clear();
 }
 
@@ -340,16 +342,20 @@ void WobiSignalStrategy::EvaluateImbalanceSignal(const Instrument& inst,
     if (m_persistence_map.find(inst_ptr) == m_persistence_map.end()) {
         m_persistence_map[inst_ptr] = 0;
     }
+    if (m_last_signal.find(inst_ptr) == m_last_signal.end()) {
+        m_last_signal[inst_ptr] = WOBI_SIDE_FLAT;
+    }
 
     WobiPositionSide side = m_position_map[inst_ptr];
+    WobiPositionSide last_sig = m_last_signal[inst_ptr];
     bool in_position = (side != WOBI_SIDE_FLAT);
 
     if (m_debug_on) {
-        cout << "[EvaluateImbalanceSignal] " << inst.symbol()
-             << " I=" << imbalance
-             << " in_pos=" << in_position
-             << " persistence=" << m_persistence_map[inst_ptr]
-             << " t=" << event_time
+        cout << "[IMBALANCE] " << inst.symbol()
+             << " | t=" << event_time
+             << " | I=" << std::fixed << std::setprecision(4) << imbalance
+             << " | persistence=" << m_persistence_map[inst_ptr]
+             << " | pos=" << (in_position ? "LONG" : "FLAT")
              << endl;
     }
 
@@ -360,9 +366,28 @@ void WobiSignalStrategy::EvaluateImbalanceSignal(const Instrument& inst,
             m_persistence_map[inst_ptr] += 1;
 
             if (m_persistence_map[inst_ptr] >= m_persistence_len) {
-                EnterLong(inst);
-                m_position_map[inst_ptr] = WOBI_SIDE_LONG;
-                m_persistence_map[inst_ptr] = 0; // reset after entering
+                // Only emit BUY signal if last signal was not BUY
+                if (last_sig != WOBI_SIDE_LONG) {
+                    cout << "\n*** BUY SIGNAL ***" << endl;
+                    cout << "[SIGNAL] " << event_time
+                         << " | ACTION=BUY"
+                         << " | SYMBOL=" << inst.symbol()
+                         << " | SIZE=" << m_position_size
+                         << " | IMBALANCE=" << std::fixed << std::setprecision(4) << imbalance
+                         << " | PERSISTENCE=" << m_persistence_map[inst_ptr]
+                         << " | THRESHOLD=" << m_entry_threshold
+                         << endl;
+                    cout << "*** BUY SIGNAL ***\n" << endl;
+
+                    EnterLong(inst);
+                    m_position_map[inst_ptr] = WOBI_SIDE_LONG;
+                    m_last_signal[inst_ptr] = WOBI_SIDE_LONG;
+                    m_persistence_map[inst_ptr] = 0; // reset after entering
+                } else {
+                    if (m_debug_on) {
+                        cout << "[SKIP_DUPLICATE] BUY signal already active for " << inst.symbol() << endl;
+                    }
+                }
             }
         } else {
             // Reset persistence if signal breaks.
@@ -373,9 +398,27 @@ void WobiSignalStrategy::EvaluateImbalanceSignal(const Instrument& inst,
     //   If IN a position and I falls below exit_threshold (e.g., 0) → SELL.
     else {
         if (imbalance < m_exit_threshold) {
-            ExitLong(inst);
-            m_position_map[inst_ptr] = WOBI_SIDE_FLAT;
-            m_persistence_map[inst_ptr] = 0;
+            // Only emit SELL signal if last signal was BUY (we're actually in position)
+            if (last_sig == WOBI_SIDE_LONG) {
+                cout << "\n*** SELL SIGNAL ***" << endl;
+                cout << "[SIGNAL] " << event_time
+                     << " | ACTION=SELL"
+                     << " | SYMBOL=" << inst.symbol()
+                     << " | SIZE=" << m_position_size
+                     << " | IMBALANCE=" << std::fixed << std::setprecision(4) << imbalance
+                     << " | EXIT_THRESHOLD=" << m_exit_threshold
+                     << endl;
+                cout << "*** SELL SIGNAL ***\n" << endl;
+
+                ExitLong(inst);
+                m_position_map[inst_ptr] = WOBI_SIDE_FLAT;
+                m_last_signal[inst_ptr] = WOBI_SIDE_FLAT;
+                m_persistence_map[inst_ptr] = 0;
+            } else {
+                if (m_debug_on) {
+                    cout << "[SKIP_DUPLICATE] SELL signal already active for " << inst.symbol() << endl;
+                }
+            }
         }
     }
 }
@@ -386,10 +429,11 @@ void WobiSignalStrategy::EvaluateImbalanceSignal(const Instrument& inst,
 
 void WobiSignalStrategy::EnterLong(const Instrument& inst)
 {
-    if (m_debug_on) {
-        cout << "[EnterLong] BUY " << m_position_size
-             << " of " << inst.symbol() << endl;
-    }
+    cout << "[ORDER] ENTERING LONG POSITION"
+         << " | Symbol=" << inst.symbol()
+         << " | Size=" << m_position_size
+         << " | Side=BUY"
+         << endl;
 
     // When you are ready to send real orders, uncomment and
     // ensure the signature matches Strategy Studio version:
@@ -404,10 +448,11 @@ void WobiSignalStrategy::EnterLong(const Instrument& inst)
 
 void WobiSignalStrategy::ExitLong(const Instrument& inst)
 {
-    if (m_debug_on) {
-        cout << "[ExitLong] SELL " << m_position_size
-             << " of " << inst.symbol() << endl;
-    }
+    cout << "[ORDER] EXITING LONG POSITION"
+         << " | Symbol=" << inst.symbol()
+         << " | Size=" << m_position_size
+         << " | Side=SELL"
+         << endl;
 
     // Likewise, uncomment when ready:
     //
