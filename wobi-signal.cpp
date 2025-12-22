@@ -160,11 +160,11 @@ void WobiSignalStrategy::OnOrderUpdate(const OrderUpdateEventMsg& msg) {
     const Instrument* inst = order.instrument();
 
     // Log order state changes
-    cout << "[OnOrderUpdate] " << msg.update_time()
-         << " | Symbol=" << inst->symbol() << " | OrderID=" << order.order_id()
-         << " | State=" << OrderStateToString(order.order_state())
-         << " | UpdateType=" << OrderUpdateTypeToString(msg.update_type())
-         << endl;
+    // cout << "[OnOrderUpdate] " << msg.update_time()
+    //      << " | Symbol=" << inst->symbol() << " | OrderID=" << order.order_id()
+    //      << " | State=" << OrderStateToString(order.order_state())
+    //      << " | UpdateType=" << OrderUpdateTypeToString(msg.update_type())
+    //      << endl;
 
     // Log execution details when fills occur
     if (msg.fill_occurred()) {
@@ -319,12 +319,12 @@ void WobiSignalStrategy::EvaluateImbalanceSignal(const Instrument& inst,
     bool in_position = (current_position > 0);
 
     // Always log imbalance summary for diagnostics
-    cout << "[IMBALANCE] " << inst.symbol() << " | t=" << event_time
-         << " | I=" << std::fixed << std::setprecision(4) << imbalance
-         << " | threshold=" << m_entry_threshold
-         << " | persistence=" << m_persistence_map[inst_ptr]
-         << " | position=" << current_position
-         << " | status=" << (in_position ? "LONG" : "FLAT") << endl;
+    // cout << "[IMBALANCE] " << inst.symbol() << " | t=" << event_time
+    //      << " | I=" << std::fixed << std::setprecision(4) << imbalance
+    //      << " | threshold=" << m_entry_threshold
+    //      << " | persistence=" << m_persistence_map[inst_ptr]
+    //      << " | position=" << current_position
+    //      << " | status=" << (in_position ? "LONG" : "FLAT") << endl;
 
     // ENTRY RULE (from proposal):
     //   If NOT in a position (position == 0) and I > t for l consecutive ticks →
@@ -360,11 +360,11 @@ void WobiSignalStrategy::EvaluateImbalanceSignal(const Instrument& inst,
         if (imbalance > m_entry_threshold) {
             m_persistence_map[inst_ptr] += 1;
             if (m_persistence_map[inst_ptr] >= m_persistence_len) {
-                cout << "[BLOCKED_BUY] " << inst.symbol()
-                     << " | Position=" << current_position
-                     << " | Cannot buy while holding shares"
-                     << " | I=" << std::fixed << std::setprecision(4)
-                     << imbalance << endl;
+                // cout << "[BLOCKED_BUY] " << inst.symbol()
+                //      << " | Position=" << current_position
+                //      << " | Cannot buy while holding shares"
+                //      << " | I=" << std::fixed << std::setprecision(4)
+                //      << imbalance << endl;
                 m_persistence_map[inst_ptr] = 0;
             }
         } else {
