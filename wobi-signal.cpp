@@ -14,6 +14,7 @@
 #include <cmath>
 #include <iostream>
 #include <cassert>
+#include <iomanip>
 
 using namespace RCM::StrategyStudio;
 using namespace RCM::StrategyStudio::MarketModels;
@@ -54,6 +55,7 @@ void WobiSignalStrategy::OnResetStrategyState()
     m_position_map.clear();
     m_persistence_map.clear();
     m_last_imbalance.clear();
+    m_last_signal.clear();
     m_instrument_order_id_map.clear();
 }
 
@@ -189,6 +191,29 @@ void WobiSignalStrategy::OnQuote(const QuoteEventMsg& msg)
 void WobiSignalStrategy::OnDepth(const MarketDepthEventMsg& msg)
 {
     const Instrument& inst = msg.instrument();
+    
+    if (m_debug_on) {
+        const MarketModels::IAggrOrderBook& book = inst.aggregate_order_book();
+        cout << "[DEPTH] (" << msg.adapter_time()
+             << ") " << inst.symbol();
+        
+        // Log top 3 levels
+        for (int i = 0; i < 3; ++i) {
+            const MarketModels::IAggrPriceLevel* bid_lvl = book.BidPriceLevelAtLevel(i);
+            const MarketModels::IAggrPriceLevel* ask_lvl = book.AskPriceLevelAtLevel(i);
+            
+            if (bid_lvl) {
+                cout << " | B" << i << "=" << std::fixed << std::setprecision(2) 
+                     << bid_lvl->price() << "(" << bid_lvl->size() << ")";
+            }
+            if (ask_lvl) {
+                cout << " | A" << i << "=" << std::fixed << std::setprecision(2) 
+                     << ask_lvl->price() << "(" << ask_lvl->size() << ")";
+            }
+        }
+        cout << endl;
+    }
+    
     double imbalance = ComputeWeightedImbalance(inst);
     EvaluateImbalanceSignal(inst, imbalance, msg.adapter_time());
 }
@@ -300,7 +325,8 @@ double WobiSignalStrategy::ComputeWeightedImbalance(const Instrument& inst) cons
         const MarketModels::IAggrPriceLevel* bid_lvl = book.BidPriceLevelAtLevel(i);
         const MarketModels::IAggrPriceLevel* ask_lvl = book.AskPriceLevelAtLevel(i);
 
-        const double w = 1.0 / std::pow(static_cast<double>(i + 1), m_weight_exponent); // changed from const double w = std::pow(static_cast<double>(i + 1), m_weight_exponent) to fix ob bug
+        // Invert weighting: near levels (i=0) get highest weight
+        const double w = std::pow(static_cast<double>(levels - i), m_weight_exponent);
 
         const int bid_sz = bid_lvl ? bid_lvl->size() : 0;
         const int ask_sz = ask_lvl ? ask_lvl->size() : 0;
@@ -311,6 +337,13 @@ double WobiSignalStrategy::ComputeWeightedImbalance(const Instrument& inst) cons
     }
 
     if (weighted_total == 0.0) {
+        return 0.0;
+    }
+
+    // Symmetric NULL handling: if either side is NULL, treat both as 0 (imbalance = 0)
+    const MarketModels::IAggrPriceLevel* bid_lvl_0 = book.BidPriceLevelAtLevel(0);
+    const MarketModels::IAggrPriceLevel* ask_lvl_0 = book.AskPriceLevelAtLevel(0);
+    if (!bid_lvl_0 || !ask_lvl_0) {
         return 0.0;
     }
 
@@ -332,16 +365,20 @@ void WobiSignalStrategy::EvaluateImbalanceSignal(const Instrument& inst,
     if (m_persistence_map.find(inst_ptr) == m_persistence_map.end()) {
         m_persistence_map[inst_ptr] = 0;
     }
+    if (m_last_signal.find(inst_ptr) == m_last_signal.end()) {
+        m_last_signal[inst_ptr] = WOBI_SIDE_FLAT;
+    }
 
     WobiPositionSide side = m_position_map[inst_ptr];
+    WobiPositionSide last_sig = m_last_signal[inst_ptr];
     bool in_position = (side != WOBI_SIDE_FLAT);
 
     if (m_debug_on) {
-        cout << "[EvaluateImbalanceSignal] " << inst.symbol()
-             << " I=" << imbalance
-             << " in_pos=" << in_position
-             << " persistence=" << m_persistence_map[inst_ptr]
-             << " t=" << event_time
+        cout << "[IMBALANCE] " << inst.symbol()
+             << " | t=" << event_time
+             << " | I=" << std::fixed << std::setprecision(4) << imbalance
+             << " | persistence=" << m_persistence_map[inst_ptr]
+             << " | pos=" << (in_position ? "LONG" : "FLAT")
              << endl;
     }
 
@@ -352,9 +389,28 @@ void WobiSignalStrategy::EvaluateImbalanceSignal(const Instrument& inst,
             m_persistence_map[inst_ptr] += 1;
 
             if (m_persistence_map[inst_ptr] >= m_persistence_len) {
-                EnterLong(inst);
-                m_position_map[inst_ptr] = WOBI_SIDE_LONG;
-                m_persistence_map[inst_ptr] = 0; // reset after entering
+                // Only emit BUY signal if last signal was not BUY
+                if (last_sig != WOBI_SIDE_LONG) {
+                    cout << "\n*** BUY SIGNAL ***" << endl;
+                    cout << "[SIGNAL] " << event_time
+                         << " | ACTION=BUY"
+                         << " | SYMBOL=" << inst.symbol()
+                         << " | SIZE=" << m_position_size
+                         << " | IMBALANCE=" << std::fixed << std::setprecision(4) << imbalance
+                         << " | PERSISTENCE=" << m_persistence_map[inst_ptr]
+                         << " | THRESHOLD=" << m_entry_threshold
+                         << endl;
+                    cout << "*** BUY SIGNAL ***\n" << endl;
+
+                    EnterLong(inst);
+                    m_position_map[inst_ptr] = WOBI_SIDE_LONG;
+                    m_last_signal[inst_ptr] = WOBI_SIDE_LONG;
+                    m_persistence_map[inst_ptr] = 0; // reset after entering
+                } else {
+                    if (m_debug_on) {
+                        cout << "[SKIP_DUPLICATE] BUY signal already active for " << inst.symbol() << endl;
+                    }
+                }
             }
         } else {
             // Reset persistence if signal breaks.
@@ -365,9 +421,27 @@ void WobiSignalStrategy::EvaluateImbalanceSignal(const Instrument& inst,
     //   If IN a position and I falls below exit_threshold (e.g., 0) → SELL.
     else {
         if (imbalance < m_exit_threshold) {
-            ExitLong(inst);
-            m_position_map[inst_ptr] = WOBI_SIDE_FLAT;
-            m_persistence_map[inst_ptr] = 0;
+            // Only emit SELL signal if last signal was BUY (we're actually in position)
+            if (last_sig == WOBI_SIDE_LONG) {
+                cout << "\n*** SELL SIGNAL ***" << endl;
+                cout << "[SIGNAL] " << event_time
+                     << " | ACTION=SELL"
+                     << " | SYMBOL=" << inst.symbol()
+                     << " | SIZE=" << m_position_size
+                     << " | IMBALANCE=" << std::fixed << std::setprecision(4) << imbalance
+                     << " | EXIT_THRESHOLD=" << m_exit_threshold
+                     << endl;
+                cout << "*** SELL SIGNAL ***\n" << endl;
+
+                ExitLong(inst);
+                m_position_map[inst_ptr] = WOBI_SIDE_FLAT;
+                m_last_signal[inst_ptr] = WOBI_SIDE_FLAT;
+                m_persistence_map[inst_ptr] = 0;
+            } else {
+                if (m_debug_on) {
+                    cout << "[SKIP_DUPLICATE] SELL signal already active for " << inst.symbol() << endl;
+                }
+            }
         }
     }
 }
@@ -378,10 +452,11 @@ void WobiSignalStrategy::EvaluateImbalanceSignal(const Instrument& inst,
 
 void WobiSignalStrategy::EnterLong(const Instrument& inst)
 {
-    if (m_debug_on) {
-        cout << "[EnterLong] BUY " << m_position_size
-             << " of " << inst.symbol() << endl;
-    }
+    cout << "[ORDER] ENTERING LONG POSITION"
+         << " | Symbol=" << inst.symbol()
+         << " | Size=" << m_position_size
+         << " | Side=BUY"
+         << endl;
 
     // When you are ready to send real orders, uncomment and
     // ensure the signature matches Strategy Studio version:
@@ -396,10 +471,11 @@ void WobiSignalStrategy::EnterLong(const Instrument& inst)
 
 void WobiSignalStrategy::ExitLong(const Instrument& inst)
 {
-    if (m_debug_on) {
-        cout << "[ExitLong] SELL " << m_position_size
-             << " of " << inst.symbol() << endl;
-    }
+    cout << "[ORDER] EXITING LONG POSITION"
+         << " | Symbol=" << inst.symbol()
+         << " | Size=" << m_position_size
+         << " | Side=SELL"
+         << endl;
 
     // Likewise, uncomment when ready:
     //
