@@ -256,30 +256,34 @@ double WobiSignalStrategy::ComputeWeightedImbalance(
     const Instrument& inst) const {
     const MarketModels::IAggrOrderBook& book = inst.aggregate_order_book();
 
-    // If book not initialized or missing depth, stay neutral.
+    // If book not initialized, stay neutral.
     if (book.is_initializing()) {
         return 0.0;
     }
 
-    const int levels = std::max(1, m_num_levels);
+    // Only iterate over levels that exist on BOTH sides to avoid asymmetric bias
+    const int actual_bid_levels = book.NumBidLevels();
+    const int actual_ask_levels = book.NumAskLevels();
+    const int levels = std::min({m_num_levels, actual_bid_levels, actual_ask_levels});
+
+    // No symmetric depth available
+    if (levels == 0) {
+        return 0.0;
+    }
 
     double weighted_bids = 0.0;
     double weighted_asks = 0.0;
     double weighted_total = 0.0;
 
     for (int i = 0; i < levels; ++i) {
-        const MarketModels::IAggrPriceLevel* bid_lvl =
-            book.BidPriceLevelAtLevel(i);
-        const MarketModels::IAggrPriceLevel* ask_lvl =
-            book.AskPriceLevelAtLevel(i);
-
         // Weighting formula from proposal: w_i = 1/(i+1)^w
         // Level 0 (top of book) gets highest weight (1.0 when w=1)
         const double w =
             1.0 / std::pow(static_cast<double>(i + 1), m_weight_exponent);
 
-        const int bid_sz = bid_lvl ? bid_lvl->size() : 0;
-        const int ask_sz = ask_lvl ? ask_lvl->size() : 0;
+        // Use direct book accessors for size at each level
+        const int bid_sz = book.BidSizeAtLevel(i);
+        const int ask_sz = book.AskSizeAtLevel(i);
 
         weighted_bids += w * static_cast<double>(bid_sz);
         weighted_asks += w * static_cast<double>(ask_sz);
@@ -287,16 +291,6 @@ double WobiSignalStrategy::ComputeWeightedImbalance(
     }
 
     if (weighted_total == 0.0) {
-        return 0.0;
-    }
-
-    // Symmetric NULL handling: if either side is NULL, treat both as 0 (imbalance
-    // = 0)
-    const MarketModels::IAggrPriceLevel* bid_lvl_0 =
-        book.BidPriceLevelAtLevel(0);
-    const MarketModels::IAggrPriceLevel* ask_lvl_0 =
-        book.AskPriceLevelAtLevel(0);
-    if (!bid_lvl_0 || !ask_lvl_0) {
         return 0.0;
     }
 
