@@ -129,6 +129,59 @@ class WobiSignalStrategy : public RCM::StrategyStudio::Strategy {
     boost::unordered_map<const RCM::StrategyStudio::MarketModels::Instrument*,
                          RCM::StrategyStudio::OrderID>
         m_instrument_order_id_map;
+
+    //   inline void DBG(const std::string& s) const {
+    //     if (m_debug_on) {
+    //         std::cout << s << std::endl;
+    //     }
+    // }
+
+    // template <typename T>
+    // inline void DBG_KV(const char* key, const T& value) const {
+    //     if (m_debug_on) {
+    //         std::cout << "[DBG] " << key << "=" << value << std::endl;
+    //     }
+    // }
+
+    // inline void DBG_INST(const RCM::StrategyStudio::MarketModels::Instrument& inst,
+    //                      const char* tag,
+    //                      double imbalance,
+    //                      int persistence) const {
+    //     if (!m_debug_on) return;
+    //     std::cout << "[DBG] " << tag
+    //               << " sym=" << inst.symbol()
+    //               << " I=" << imbalance
+    //               << " persist=" << persistence
+    //               << std::endl;
+    // }
+
+    // // Optional: quick state dump (call from OnDepth / OnOrderUpdate when needed)
+    // inline void DumpState(const RCM::StrategyStudio::MarketModels::Instrument& inst) const {
+    //     if (!m_debug_on) return;
+
+    //     const auto* p = &inst;
+    //     const int persist = (m_persistence_map.find(p) != m_persistence_map.end())
+    //                             ? m_persistence_map.at(p)
+    //                             : 0;
+    //     const double lastI = (m_last_imbalance.find(p) != m_last_imbalance.end())
+    //                             ? m_last_imbalance.at(p)
+    //                             : 0.0;
+
+    //     std::cout << "[STATE] sym=" << inst.symbol()
+    //               << " lastI=" << lastI
+    //               << " persist=" << persist
+    //               << " pos_size=" << m_position_size
+    //               << " levels=" << m_num_levels
+    //               << " entry_t=" << m_entry_threshold
+    //               << " exit_t=" << m_exit_threshold
+    //               << std::endl;
+    // }
+
+    // // Debug counters (handy for sanity checks)
+    // mutable uint64_t m_depth_event_count = 0;
+    // mutable uint64_t m_order_update_count = 0;
+    // mutable uint64_t m_signal_enter_count = 0;
+    // mutable uint64_t m_signal_exit_count = 0;
 };
 
 //
