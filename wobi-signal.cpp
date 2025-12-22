@@ -480,3 +480,9 @@ void WobiSignalStrategy::ExitLong(const Instrument& inst) {
         cout << "[ORDER] SELL order FAILED | Result=" << result << endl;
     }
 }
+
+
+// if (m_debug_on && weighted_total == 0.0) {
+//     cout << "[WOBI] Empty depth for " << inst.symbol() << endl;
+// }
+
