@@ -7,6 +7,7 @@
 #include <iostream>
 #include "ExecutionTypes.h"
 #include "FillInfo.h"
+#include "IOrderTracker.h"
 #include "Order.h"
 #include "OrderParams.h"
 
@@ -30,7 +31,7 @@ WobiSignalStrategy::WobiSignalStrategy(StrategyID strategyID,
       m_persistence_len(3),    // default l
       m_weight_exponent(1.0),  // default w
       m_latency_ns(0.0),       // default a
-      m_position_size(100),
+      m_position_size(1),
       m_debug_on(true) {}
 
 WobiSignalStrategy::~WobiSignalStrategy() {}
@@ -318,18 +319,35 @@ void WobiSignalStrategy::EvaluateImbalanceSignal(const Instrument& inst,
     int current_position = portfolio().position(inst_ptr);
     bool in_position = (current_position > 0);
 
+    // Check for any working BUY orders on this instrument to prevent double-buying
+    bool has_working_buy = false;
+    const IOrderTracker& order_tracker = orders();
+    IOrderTracker::WorkingOrdersConstIter it =
+        order_tracker.working_orders_begin(inst_ptr);
+    IOrderTracker::WorkingOrdersConstIter end =
+        order_tracker.working_orders_end(inst_ptr);
+
+    for (; it != end; ++it) {
+        const Order* ord = *it;
+        if (ord && IsBuySide(ord->order_side())) {
+            has_working_buy = true;
+            break;
+        }
+    }
+
     // Always log imbalance summary for diagnostics
     // cout << "[IMBALANCE] " << inst.symbol() << " | t=" << event_time
     //      << " | I=" << std::fixed << std::setprecision(4) << imbalance
     //      << " | threshold=" << m_entry_threshold
     //      << " | persistence=" << m_persistence_map[inst_ptr]
     //      << " | position=" << current_position
+    //      << " | hasWorkingBuy=" << (has_working_buy ? "YES" : "NO")
     //      << " | status=" << (in_position ? "LONG" : "FLAT") << endl;
 
     // ENTRY RULE (from proposal):
-    //   If NOT in a position (position == 0) and I > t for l consecutive ticks →
-    //   BUY.
-    if (!in_position) {
+    //   If NOT in a position (position == 0) AND no working buy order exists
+    //   AND I > t for l consecutive ticks → BUY.
+    if (!in_position && !has_working_buy) {
         if (imbalance > m_entry_threshold) {
             m_persistence_map[inst_ptr] += 1;
 
@@ -349,6 +367,21 @@ void WobiSignalStrategy::EvaluateImbalanceSignal(const Instrument& inst,
             }
         } else {
             // Reset persistence if signal breaks.
+            m_persistence_map[inst_ptr] = 0;
+        }
+    } else if (!in_position && has_working_buy) {
+        // Blocked buy: we have a pending buy order, don't send another
+        if (imbalance > m_entry_threshold) {
+            m_persistence_map[inst_ptr] += 1;
+            if (m_persistence_map[inst_ptr] >= m_persistence_len) {
+                // cout << "[BLOCKED_BUY_PENDING_ORDER] " << inst.symbol()
+                //      << " | Position=" << current_position
+                //      << " | Cannot buy - working buy order exists"
+                //      << " | I=" << std::fixed << std::setprecision(4)
+                //      << imbalance << endl;
+                m_persistence_map[inst_ptr] = 0;
+            }
+        } else {
             m_persistence_map[inst_ptr] = 0;
         }
     }
@@ -399,17 +432,17 @@ void WobiSignalStrategy::EnterLong(const Instrument& inst) {
     cout << "[ORDER] ENTERING LONG POSITION"
          << " | Symbol=" << inst.symbol() << " | Size=" << m_position_size
          << " | Side=BUY"
-         << " | TIF=FOK"
+         << " | TIF=GTC"
          << " | ExpectedPrice=" << std::fixed << std::setprecision(2)
          << expected_price << " | LatencyNs=" << m_latency_ns << endl;
 
-    // Create order params for market buy with Fill-or-Kill
+    // Create order params for market buy with Good-Till-Cancelled
     OrderParams params(
         inst, m_position_size,
         0.0,                   // price (not used for market orders)
         MARKET_CENTER_ID_IEX,  // default market center
         ORDER_SIDE_BUY,
-        ORDER_TIF_FOK,  // Fill or Kill - all shares must fill or cancel
+        ORDER_TIF_GTC,  // Good Till Cancelled - stays until filled
         ORDER_TYPE_MARKET);
 
     TradeActionResult result = trade_actions()->SendNewOrder(params);

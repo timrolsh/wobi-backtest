@@ -36,9 +36,11 @@
  *   I   = sum_i w_i (BidSize_i - AskSize_i) / sum_i w_i (BidSize_i + AskSize_i)
  *
  * Trading rules:
- *   - Buy (FOK): when portfolio position == 0 AND I > entry_threshold for persistence_len ticks.
+ *   - Buy (GTC): when portfolio position == 0 AND no working buy order exists
+ *                AND I > entry_threshold for persistence_len ticks.
  *   - Sell (GTC): when portfolio position > 0 AND I < exit_threshold.
  *   - Position gating: uses portfolio() as single source of truth.
+ *   - Prevents double-buying by checking for working buy orders.
  */
 class WobiSignalStrategy : public RCM::StrategyStudio::Strategy {
    public:
