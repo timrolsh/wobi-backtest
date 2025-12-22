@@ -151,11 +151,6 @@ void WobiSignalStrategy::OnDepth(const MarketDepthEventMsg& msg) {
     EvaluateImbalanceSignal(inst, imbalance, msg.adapter_time());
 }
 
-void WobiSignalStrategy::OnBar(const BarEventMsg& msg) {
-    // Optional: per-bar stats, logging, PnL summaries, etc.
-    (void)msg;
-}
-
 /*===========================================================
  *   Order Updates
  *===========================================================*/

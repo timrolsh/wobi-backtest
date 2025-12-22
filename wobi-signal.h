@@ -60,21 +60,21 @@ class WobiSignalStrategy : public RCM::StrategyStudio::Strategy {
     // IEventCallback interface
     //
    public:
-    virtual void OnTrade(const RCM::StrategyStudio::TradeDataEventMsg& msg);
-    virtual void OnTopQuote(const RCM::StrategyStudio::QuoteEventMsg& msg);
-    virtual void OnQuote(const RCM::StrategyStudio::QuoteEventMsg& msg);
+    // virtual void OnTrade(const RCM::StrategyStudio::TradeDataEventMsg& msg);
+    // virtual void OnTopQuote(const RCM::StrategyStudio::QuoteEventMsg& msg);
+    // virtual void OnQuote(const RCM::StrategyStudio::QuoteEventMsg& msg);
     virtual void OnDepth(const RCM::StrategyStudio::MarketDepthEventMsg& msg);
-    virtual void OnBar(const RCM::StrategyStudio::BarEventMsg& msg);
+    // virtual void OnBar(const RCM::StrategyStudio::BarEventMsg& msg);
 
-    virtual void OnMarketState(
-        const RCM::StrategyStudio::MarketStateEventMsg& msg) {};
+    // virtual void OnMarketState(
+    //     const RCM::StrategyStudio::MarketStateEventMsg& msg) {};
     virtual void OnOrderUpdate(
         const RCM::StrategyStudio::OrderUpdateEventMsg& msg);
-    virtual void OnStrategyControl(
-        const RCM::StrategyStudio::StrategyStateControlEventMsg& msg) {};
+    // virtual void OnStrategyControl(
+    //     const RCM::StrategyStudio::StrategyStateControlEventMsg& msg) {};
     virtual void OnResetStrategyState();
-    virtual void OnDataSubscription(
-        const RCM::StrategyStudio::DataSubscriptionEventMsg& msg) {};
+    // virtual void OnDataSubscription(
+    //     const RCM::StrategyStudio::DataSubscriptionEventMsg& msg) {};
     virtual void OnStrategyCommand(
         const RCM::StrategyStudio::StrategyCommandEventMsg& msg);
     virtual void OnParamChanged(RCM::StrategyStudio::StrategyParam& param);
@@ -92,7 +92,6 @@ class WobiSignalStrategy : public RCM::StrategyStudio::Strategy {
     //
     // Internal helpers
     //
-   private:
     /** Compute the weighted imbalance I for a given instrument. */
     double ComputeWeightedImbalance(
         const RCM::StrategyStudio::MarketModels::Instrument& inst) const;
@@ -109,7 +108,6 @@ class WobiSignalStrategy : public RCM::StrategyStudio::Strategy {
     //
     // Strategy parameters (configurable from Strategy Manager)
     //
-   private:
     int m_num_levels;          ///< n : number of price levels to look at
     double m_entry_threshold;  ///< t : entry threshold on imbalance
     double m_exit_threshold;   ///< exit threshold (often 0)
@@ -123,7 +121,6 @@ class WobiSignalStrategy : public RCM::StrategyStudio::Strategy {
     //
     // Per-instrument state
     //
-   private:
     PersistenceMap m_persistence_map;  ///< consecutive ticks with signal
     ImbalanceMap m_last_imbalance;     ///< last computed imbalance
 
