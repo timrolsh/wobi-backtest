@@ -124,28 +124,28 @@ void WobiSignalStrategy::DefineStrategyCommands() {
 void WobiSignalStrategy::OnDepth(const MarketDepthEventMsg& msg) {
     const Instrument& inst = msg.instrument();
 
-    if (m_debug_on) {
-        const MarketModels::IAggrOrderBook& book = inst.aggregate_order_book();
-        cout << "[DEPTH] (" << msg.adapter_time() << ") " << inst.symbol();
+    // if (m_debug_on) {
+    //     const MarketModels::IAggrOrderBook& book = inst.aggregate_order_book();
+    //     cout << "[DEPTH] (" << msg.adapter_time() << ") " << inst.symbol();
 
-        // Log top 3 levels
-        for (int i = 0; i < 3; ++i) {
-            const MarketModels::IAggrPriceLevel* bid_lvl =
-                book.BidPriceLevelAtLevel(i);
-            const MarketModels::IAggrPriceLevel* ask_lvl =
-                book.AskPriceLevelAtLevel(i);
+    //     // Log top 3 levels
+    //     for (int i = 0; i < 3; ++i) {
+    //         const MarketModels::IAggrPriceLevel* bid_lvl =
+    //             book.BidPriceLevelAtLevel(i);
+    //         const MarketModels::IAggrPriceLevel* ask_lvl =
+    //             book.AskPriceLevelAtLevel(i);
 
-            if (bid_lvl) {
-                cout << " | B" << i << "=" << std::fixed << std::setprecision(2)
-                     << bid_lvl->price() << "(" << bid_lvl->size() << ")";
-            }
-            if (ask_lvl) {
-                cout << " | A" << i << "=" << std::fixed << std::setprecision(2)
-                     << ask_lvl->price() << "(" << ask_lvl->size() << ")";
-            }
-        }
-        cout << endl;
-    }
+    //         if (bid_lvl) {
+    //             cout << " | B" << i << "=" << std::fixed << std::setprecision(2)
+    //                  << bid_lvl->price() << "(" << bid_lvl->size() << ")";
+    //         }
+    //         if (ask_lvl) {
+    //             cout << " | A" << i << "=" << std::fixed << std::setprecision(2)
+    //                  << ask_lvl->price() << "(" << ask_lvl->size() << ")";
+    //         }
+    //     }
+    //     cout << endl;
+    // }
 
     double imbalance = ComputeWeightedImbalance(inst);
     EvaluateImbalanceSignal(inst, imbalance, msg.adapter_time());
