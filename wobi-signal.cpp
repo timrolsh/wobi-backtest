@@ -305,8 +305,8 @@ double WobiSignalStrategy::ComputeWeightedImbalance(const Instrument& inst) cons
         // Invert weighting: near levels (i=0) get highest weight
         const double w = std::pow(static_cast<double>(levels - i), m_weight_exponent);
 
-        const int bid_sz = bid_lvl ? bid_lvl->aggregate_qty() : 0;
-        const int ask_sz = ask_lvl ? ask_lvl->aggregate_qty() : 0;
+        const int bid_sz = bid_lvl ? bid_lvl->size() : 0;
+        const int ask_sz = ask_lvl ? ask_lvl->size() : 0;
 
         weighted_bids  += w * static_cast<double>(bid_sz);
         weighted_asks  += w * static_cast<double>(ask_sz);
