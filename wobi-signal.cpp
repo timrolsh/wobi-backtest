@@ -1,20 +1,14 @@
-#ifdef _WIN32
-    #include "stdafx.h"
-#endif
-
 #include "wobi-signal.h"
-
-#include "FillInfo.h"
-#include "AllEventMsg.h"
-#include "ExecutionTypes.h"
-
 #include <Utilities/Cast.h>
 #include <Utilities/utils.h>
-
-#include <cmath>
-#include <iostream>
 #include <cassert>
+#include <cmath>
 #include <iomanip>
+#include <iostream>
+#include "ExecutionTypes.h"
+#include "FillInfo.h"
+#include "Order.h"
+#include "OrderParams.h"
 
 using namespace RCM::StrategyStudio;
 using namespace RCM::StrategyStudio::MarketModels;
@@ -30,32 +24,24 @@ WobiSignalStrategy::WobiSignalStrategy(StrategyID strategyID,
                                        const std::string& strategyName,
                                        const std::string& groupName)
     : Strategy(strategyID, strategyName, groupName),
-      m_num_levels(5),          // default n
-      m_entry_threshold(0.0),   // default t (you'll tune this)
-      m_exit_threshold(0.0),    // default exit (I < 0)
-      m_persistence_len(3),     // default l
-      m_weight_exponent(1.0),   // default w
-      m_latency_ns(0.0),        // default a
+      m_num_levels(5),         // default n
+      m_entry_threshold(0.0),  // default t (you'll tune this)
+      m_exit_threshold(0.0),   // default exit (I < 0)
+      m_persistence_len(3),    // default l
+      m_weight_exponent(1.0),  // default w
+      m_latency_ns(0.0),       // default a
       m_position_size(100),
-      m_debug_on(true)
-{
-}
+      m_debug_on(true) {}
 
-WobiSignalStrategy::~WobiSignalStrategy()
-{
-}
+WobiSignalStrategy::~WobiSignalStrategy() {}
 
 /*===========================================================
  *   Reset Strategy State
  *===========================================================*/
 
-void WobiSignalStrategy::OnResetStrategyState()
-{
-    m_last_trade_price.clear();
-    m_position_map.clear();
+void WobiSignalStrategy::OnResetStrategyState() {
     m_persistence_map.clear();
     m_last_imbalance.clear();
-    m_last_signal.clear();
     m_instrument_order_id_map.clear();
 }
 
@@ -63,13 +49,11 @@ void WobiSignalStrategy::OnResetStrategyState()
  *   Event Registration
  *===========================================================*/
 
-void WobiSignalStrategy::RegisterForStrategyEvents(StrategyEventRegister* eventRegister,
-                                                   DateType currDate)
-{
+void WobiSignalStrategy::RegisterForStrategyEvents(
+    StrategyEventRegister* eventRegister, DateType currDate) {
     (void)currDate;
 
-    for (SymbolSetConstIter it = symbols_begin(); it != symbols_end(); ++it)
-    {
+    for (SymbolSetConstIter it = symbols_begin(); it != symbols_end(); ++it) {
         eventRegister->RegisterForMarketData(*it);
         eventRegister->RegisterForBars(*it, BAR_TYPE_TIME, 1);
     }
@@ -79,62 +63,45 @@ void WobiSignalStrategy::RegisterForStrategyEvents(StrategyEventRegister* eventR
  *   Define Strategy Parameters
  *===========================================================*/
 
-void WobiSignalStrategy::DefineStrategyParams()
-{
+void WobiSignalStrategy::DefineStrategyParams() {
     // n: number of price levels to analyze
-    CreateStrategyParamArgs arg1("num_levels",
-                                 STRATEGY_PARAM_TYPE_STARTUP,
-                                 VALUE_TYPE_INT,
-                                 m_num_levels);
+    CreateStrategyParamArgs arg1("num_levels", STRATEGY_PARAM_TYPE_STARTUP,
+                                 VALUE_TYPE_INT, m_num_levels);
     params().CreateParam(arg1);
 
     // t: imbalance threshold for entry (I > t)
-    CreateStrategyParamArgs arg2("entry_threshold",
-                                 STRATEGY_PARAM_TYPE_RUNTIME,
-                                 VALUE_TYPE_DOUBLE,
-                                 m_entry_threshold);
+    CreateStrategyParamArgs arg2("entry_threshold", STRATEGY_PARAM_TYPE_RUNTIME,
+                                 VALUE_TYPE_DOUBLE, m_entry_threshold);
     params().CreateParam(arg2);
 
     // exit threshold (often 0; when imbalance reverses out of ideal range)
-    CreateStrategyParamArgs arg3("exit_threshold",
-                                 STRATEGY_PARAM_TYPE_RUNTIME,
-                                 VALUE_TYPE_DOUBLE,
-                                 m_exit_threshold);
+    CreateStrategyParamArgs arg3("exit_threshold", STRATEGY_PARAM_TYPE_RUNTIME,
+                                 VALUE_TYPE_DOUBLE, m_exit_threshold);
     params().CreateParam(arg3);
 
     // l: persistence length in ticks
-    CreateStrategyParamArgs arg4("persistence_len",
-                                 STRATEGY_PARAM_TYPE_RUNTIME,
-                                 VALUE_TYPE_INT,
-                                 m_persistence_len);
+    CreateStrategyParamArgs arg4("persistence_len", STRATEGY_PARAM_TYPE_RUNTIME,
+                                 VALUE_TYPE_INT, m_persistence_len);
     params().CreateParam(arg4);
 
     // w: weighting exponent for level weights ( (i+1)^w )
-    CreateStrategyParamArgs arg5("weight_exponent",
-                                 STRATEGY_PARAM_TYPE_STARTUP,
-                                 VALUE_TYPE_DOUBLE,
-                                 m_weight_exponent);
+    CreateStrategyParamArgs arg5("weight_exponent", STRATEGY_PARAM_TYPE_STARTUP,
+                                 VALUE_TYPE_DOUBLE, m_weight_exponent);
     params().CreateParam(arg5);
 
     // a: round-trip latency assumption (ns)
-    CreateStrategyParamArgs arg6("latency_ns",
-                                 STRATEGY_PARAM_TYPE_RUNTIME,
-                                 VALUE_TYPE_DOUBLE,
-                                 m_latency_ns);
+    CreateStrategyParamArgs arg6("latency_ns", STRATEGY_PARAM_TYPE_RUNTIME,
+                                 VALUE_TYPE_DOUBLE, m_latency_ns);
     params().CreateParam(arg6);
 
     // position size (shares)
-    CreateStrategyParamArgs arg7("position_size",
-                                 STRATEGY_PARAM_TYPE_RUNTIME,
-                                 VALUE_TYPE_INT,
-                                 m_position_size);
+    CreateStrategyParamArgs arg7("position_size", STRATEGY_PARAM_TYPE_RUNTIME,
+                                 VALUE_TYPE_INT, m_position_size);
     params().CreateParam(arg7);
 
     // debug logging flag
-    CreateStrategyParamArgs arg8("debug",
-                                 STRATEGY_PARAM_TYPE_RUNTIME,
-                                 VALUE_TYPE_BOOL,
-                                 m_debug_on);
+    CreateStrategyParamArgs arg8("debug", STRATEGY_PARAM_TYPE_RUNTIME,
+                                 VALUE_TYPE_BOOL, m_debug_on);
     params().CreateParam(arg8);
 }
 
@@ -142,8 +109,7 @@ void WobiSignalStrategy::DefineStrategyParams()
  *   Define Strategy Commands
  *===========================================================*/
 
-void WobiSignalStrategy::DefineStrategyCommands()
-{
+void WobiSignalStrategy::DefineStrategyCommands() {
     StrategyCommand command1(1, "Cancel All Orders");
     commands().AddCommand(command1);
 
@@ -154,72 +120,38 @@ void WobiSignalStrategy::DefineStrategyCommands()
  *   Event Handlers
  *===========================================================*/
 
-void WobiSignalStrategy::OnTrade(const TradeDataEventMsg& msg)
-{
-    // Track last trade price by symbol (useful for PnL or sanity checks)
-    m_last_trade_price[msg.instrument().symbol()] = msg.trade().price();
 
-    if (m_debug_on) {
-        cout << "[OnTrade] (" << msg.adapter_time()
-             << ") " << msg.instrument().symbol()
-             << " size=" << msg.trade().size()
-             << " @ " << msg.trade().price()
-             << endl;
-    }
-}
-
-void WobiSignalStrategy::OnTopQuote(const QuoteEventMsg& msg)
-{
-    if (m_debug_on) {
-        cout << "[OnTopQuote] (" << msg.adapter_time()
-             << ") " << msg.instrument().symbol()
-             << " bid=" << msg.instrument().top_quote().bid_size()
-             << "@" << msg.instrument().top_quote().bid()
-             << " ask=" << msg.instrument().top_quote().ask_size()
-             << "@" << msg.instrument().top_quote().ask()
-             << endl;
-    }
-}
-
-void WobiSignalStrategy::OnQuote(const QuoteEventMsg& msg)
-{
-    // Optional: per-market-center quote logging.
-    // Left intentionally light to avoid spamming output.
-    (void)msg;
-}
-
-void WobiSignalStrategy::OnDepth(const MarketDepthEventMsg& msg)
-{
+void WobiSignalStrategy::OnDepth(const MarketDepthEventMsg& msg) {
     const Instrument& inst = msg.instrument();
-    
+
     if (m_debug_on) {
         const MarketModels::IAggrOrderBook& book = inst.aggregate_order_book();
-        cout << "[DEPTH] (" << msg.adapter_time()
-             << ") " << inst.symbol();
-        
+        cout << "[DEPTH] (" << msg.adapter_time() << ") " << inst.symbol();
+
         // Log top 3 levels
         for (int i = 0; i < 3; ++i) {
-            const MarketModels::IAggrPriceLevel* bid_lvl = book.BidPriceLevelAtLevel(i);
-            const MarketModels::IAggrPriceLevel* ask_lvl = book.AskPriceLevelAtLevel(i);
-            
+            const MarketModels::IAggrPriceLevel* bid_lvl =
+                book.BidPriceLevelAtLevel(i);
+            const MarketModels::IAggrPriceLevel* ask_lvl =
+                book.AskPriceLevelAtLevel(i);
+
             if (bid_lvl) {
-                cout << " | B" << i << "=" << std::fixed << std::setprecision(2) 
+                cout << " | B" << i << "=" << std::fixed << std::setprecision(2)
                      << bid_lvl->price() << "(" << bid_lvl->size() << ")";
             }
             if (ask_lvl) {
-                cout << " | A" << i << "=" << std::fixed << std::setprecision(2) 
+                cout << " | A" << i << "=" << std::fixed << std::setprecision(2)
                      << ask_lvl->price() << "(" << ask_lvl->size() << ")";
             }
         }
         cout << endl;
     }
-    
+
     double imbalance = ComputeWeightedImbalance(inst);
     EvaluateImbalanceSignal(inst, imbalance, msg.adapter_time());
 }
 
-void WobiSignalStrategy::OnBar(const BarEventMsg& msg)
-{
+void WobiSignalStrategy::OnBar(const BarEventMsg& msg) {
     // Optional: per-bar stats, logging, PnL summaries, etc.
     (void)msg;
 }
@@ -228,22 +160,41 @@ void WobiSignalStrategy::OnBar(const BarEventMsg& msg)
  *   Order Updates
  *===========================================================*/
 
-void WobiSignalStrategy::OnOrderUpdate(const OrderUpdateEventMsg& msg)
-{
-    if (m_debug_on) {
-        cout << "[OnOrderUpdate] " << msg.update_time()
-             << " name=" << msg.name() << endl;
+void WobiSignalStrategy::OnOrderUpdate(const OrderUpdateEventMsg& msg) {
+    const Order& order = msg.order();
+    const Instrument* inst = order.instrument();
+
+    // Log order state changes
+    cout << "[OnOrderUpdate] " << msg.update_time()
+         << " | Symbol=" << inst->symbol() << " | OrderID=" << order.order_id()
+         << " | State=" << OrderStateToString(order.order_state())
+         << " | UpdateType=" << OrderUpdateTypeToString(msg.update_type())
+         << endl;
+
+    // Log execution details when fills occur
+    if (msg.fill_occurred()) {
+        const FillInfo* fill = msg.fill();
+        if (fill) {
+            std::string side_str =
+                IsBuySide(order.order_side()) ? "BUY" : "SELL";
+
+            cout << "[EXECUTION] " << fill->fill_time()
+                 << " | ACTION=" << side_str << " | Symbol=" << inst->symbol()
+                 << " | Price=" << std::fixed << std::setprecision(2)
+                 << fill->price() << " | Size=" << fill->size()
+                 << " | OrderID=" << order.order_id()
+                 << " | Partial=" << (fill->is_partial() ? "YES" : "NO")
+                 << endl;
+        }
     }
 
     if (msg.completes_order()) {
-        // Track completion per instrument if desired
-        const Instrument* inst = msg.order().instrument();
+        // Clear order ID tracking for this instrument
         m_instrument_order_id_map[inst] = 0;
 
-        if (m_debug_on) {
-            cout << "[OnOrderUpdate] order complete for "
-                 << inst->symbol() << endl;
-        }
+        cout << "[OnOrderUpdate] Order complete for " << inst->symbol()
+             << " | FinalState=" << OrderStateToString(order.order_state())
+             << " | FilledQty=" << order.size_completed() << endl;
     }
 }
 
@@ -251,8 +202,7 @@ void WobiSignalStrategy::OnOrderUpdate(const OrderUpdateEventMsg& msg)
  *   Strategy Commands
  *===========================================================*/
 
-void WobiSignalStrategy::OnStrategyCommand(const StrategyCommandEventMsg& msg)
-{
+void WobiSignalStrategy::OnStrategyCommand(const StrategyCommandEventMsg& msg) {
     switch (msg.command_id()) {
         case 1:
             // Cancel all working orders
@@ -262,7 +212,8 @@ void WobiSignalStrategy::OnStrategyCommand(const StrategyCommandEventMsg& msg)
             }
             break;
         default:
-            logger().LogToClient(LOGLEVEL_DEBUG, "Unknown strategy command received");
+            logger().LogToClient(LOGLEVEL_DEBUG,
+                                 "Unknown strategy command received");
             break;
     }
 }
@@ -271,8 +222,7 @@ void WobiSignalStrategy::OnStrategyCommand(const StrategyCommandEventMsg& msg)
  *   Parameter Changed
  *===========================================================*/
 
-void WobiSignalStrategy::OnParamChanged(StrategyParam& param)
-{
+void WobiSignalStrategy::OnParamChanged(StrategyParam& param) {
     // Mirroring the DiaIndexArb style, but actually applied:
 
     if (param.param_name() == "num_levels") {
@@ -306,8 +256,8 @@ void WobiSignalStrategy::OnParamChanged(StrategyParam& param)
  *   Imbalance Logic (Core of Project)
  *===========================================================*/
 
-double WobiSignalStrategy::ComputeWeightedImbalance(const Instrument& inst) const
-{
+double WobiSignalStrategy::ComputeWeightedImbalance(
+    const Instrument& inst) const {
     const MarketModels::IAggrOrderBook& book = inst.aggregate_order_book();
 
     // If book not initialized or missing depth, stay neutral.
@@ -322,17 +272,21 @@ double WobiSignalStrategy::ComputeWeightedImbalance(const Instrument& inst) cons
     double weighted_total = 0.0;
 
     for (int i = 0; i < levels; ++i) {
-        const MarketModels::IAggrPriceLevel* bid_lvl = book.BidPriceLevelAtLevel(i);
-        const MarketModels::IAggrPriceLevel* ask_lvl = book.AskPriceLevelAtLevel(i);
+        const MarketModels::IAggrPriceLevel* bid_lvl =
+            book.BidPriceLevelAtLevel(i);
+        const MarketModels::IAggrPriceLevel* ask_lvl =
+            book.AskPriceLevelAtLevel(i);
 
-        // Invert weighting: near levels (i=0) get highest weight
-        const double w = std::pow(static_cast<double>(levels - i), m_weight_exponent);
+        // Weighting formula from proposal: w_i = 1/(i+1)^w
+        // Level 0 (top of book) gets highest weight (1.0 when w=1)
+        const double w =
+            1.0 / std::pow(static_cast<double>(i + 1), m_weight_exponent);
 
         const int bid_sz = bid_lvl ? bid_lvl->size() : 0;
         const int ask_sz = ask_lvl ? ask_lvl->size() : 0;
 
-        weighted_bids  += w * static_cast<double>(bid_sz);
-        weighted_asks  += w * static_cast<double>(ask_sz);
+        weighted_bids += w * static_cast<double>(bid_sz);
+        weighted_asks += w * static_cast<double>(ask_sz);
         weighted_total += w * static_cast<double>(bid_sz + ask_sz);
     }
 
@@ -340,9 +294,12 @@ double WobiSignalStrategy::ComputeWeightedImbalance(const Instrument& inst) cons
         return 0.0;
     }
 
-    // Symmetric NULL handling: if either side is NULL, treat both as 0 (imbalance = 0)
-    const MarketModels::IAggrPriceLevel* bid_lvl_0 = book.BidPriceLevelAtLevel(0);
-    const MarketModels::IAggrPriceLevel* ask_lvl_0 = book.AskPriceLevelAtLevel(0);
+    // Symmetric NULL handling: if either side is NULL, treat both as 0 (imbalance
+    // = 0)
+    const MarketModels::IAggrPriceLevel* bid_lvl_0 =
+        book.BidPriceLevelAtLevel(0);
+    const MarketModels::IAggrPriceLevel* ask_lvl_0 =
+        book.AskPriceLevelAtLevel(0);
     if (!bid_lvl_0 || !ask_lvl_0) {
         return 0.0;
     }
@@ -352,65 +309,48 @@ double WobiSignalStrategy::ComputeWeightedImbalance(const Instrument& inst) cons
 
 void WobiSignalStrategy::EvaluateImbalanceSignal(const Instrument& inst,
                                                  double imbalance,
-                                                 TimeType event_time)
-{
+                                                 TimeType event_time) {
     const Instrument* inst_ptr = &inst;
 
     m_last_imbalance[inst_ptr] = imbalance;
 
-    // Ensure maps have entries for this instrument
-    if (m_position_map.find(inst_ptr) == m_position_map.end()) {
-        m_position_map[inst_ptr] = WOBI_SIDE_FLAT;
-    }
+    // Ensure persistence map has entry for this instrument
     if (m_persistence_map.find(inst_ptr) == m_persistence_map.end()) {
         m_persistence_map[inst_ptr] = 0;
     }
-    if (m_last_signal.find(inst_ptr) == m_last_signal.end()) {
-        m_last_signal[inst_ptr] = WOBI_SIDE_FLAT;
-    }
 
-    WobiPositionSide side = m_position_map[inst_ptr];
-    WobiPositionSide last_sig = m_last_signal[inst_ptr];
-    bool in_position = (side != WOBI_SIDE_FLAT);
+    // Use portfolio as the single source of truth for position
+    int current_position = portfolio().position(inst_ptr);
+    bool in_position = (current_position > 0);
 
-    if (m_debug_on) {
-        cout << "[IMBALANCE] " << inst.symbol()
-             << " | t=" << event_time
-             << " | I=" << std::fixed << std::setprecision(4) << imbalance
-             << " | persistence=" << m_persistence_map[inst_ptr]
-             << " | pos=" << (in_position ? "LONG" : "FLAT")
-             << endl;
-    }
+    // Always log imbalance summary for diagnostics
+    cout << "[IMBALANCE] " << inst.symbol() << " | t=" << event_time
+         << " | I=" << std::fixed << std::setprecision(4) << imbalance
+         << " | threshold=" << m_entry_threshold
+         << " | persistence=" << m_persistence_map[inst_ptr]
+         << " | position=" << current_position
+         << " | status=" << (in_position ? "LONG" : "FLAT") << endl;
 
     // ENTRY RULE (from proposal):
-    //   If NOT in a position and I > t for l consecutive ticks → BUY.
+    //   If NOT in a position (position == 0) and I > t for l consecutive ticks →
+    //   BUY.
     if (!in_position) {
         if (imbalance > m_entry_threshold) {
             m_persistence_map[inst_ptr] += 1;
 
             if (m_persistence_map[inst_ptr] >= m_persistence_len) {
-                // Only emit BUY signal if last signal was not BUY
-                if (last_sig != WOBI_SIDE_LONG) {
-                    cout << "\n*** BUY SIGNAL ***" << endl;
-                    cout << "[SIGNAL] " << event_time
-                         << " | ACTION=BUY"
-                         << " | SYMBOL=" << inst.symbol()
-                         << " | SIZE=" << m_position_size
-                         << " | IMBALANCE=" << std::fixed << std::setprecision(4) << imbalance
-                         << " | PERSISTENCE=" << m_persistence_map[inst_ptr]
-                         << " | THRESHOLD=" << m_entry_threshold
-                         << endl;
-                    cout << "*** BUY SIGNAL ***\n" << endl;
+                cout << "\n*** BUY SIGNAL ***" << endl;
+                cout << "[SIGNAL] " << event_time << " | ACTION=BUY"
+                     << " | SYMBOL=" << inst.symbol()
+                     << " | SIZE=" << m_position_size
+                     << " | IMBALANCE=" << std::fixed << std::setprecision(4)
+                     << imbalance
+                     << " | PERSISTENCE=" << m_persistence_map[inst_ptr]
+                     << " | THRESHOLD=" << m_entry_threshold << endl;
+                cout << "*** BUY SIGNAL ***\n" << endl;
 
-                    EnterLong(inst);
-                    m_position_map[inst_ptr] = WOBI_SIDE_LONG;
-                    m_last_signal[inst_ptr] = WOBI_SIDE_LONG;
-                    m_persistence_map[inst_ptr] = 0; // reset after entering
-                } else {
-                    if (m_debug_on) {
-                        cout << "[SKIP_DUPLICATE] BUY signal already active for " << inst.symbol() << endl;
-                    }
-                }
+                EnterLong(inst);
+                m_persistence_map[inst_ptr] = 0;  // reset after entering
             }
         } else {
             // Reset persistence if signal breaks.
@@ -418,30 +358,37 @@ void WobiSignalStrategy::EvaluateImbalanceSignal(const Instrument& inst,
         }
     }
     // EXIT RULE (from proposal):
-    //   If IN a position and I falls below exit_threshold (e.g., 0) → SELL.
+    //   If IN a position (position > 0) and I falls below exit_threshold (e.g.,
+    //   0) → SELL.
     else {
-        if (imbalance < m_exit_threshold) {
-            // Only emit SELL signal if last signal was BUY (we're actually in position)
-            if (last_sig == WOBI_SIDE_LONG) {
-                cout << "\n*** SELL SIGNAL ***" << endl;
-                cout << "[SIGNAL] " << event_time
-                     << " | ACTION=SELL"
-                     << " | SYMBOL=" << inst.symbol()
-                     << " | SIZE=" << m_position_size
-                     << " | IMBALANCE=" << std::fixed << std::setprecision(4) << imbalance
-                     << " | EXIT_THRESHOLD=" << m_exit_threshold
-                     << endl;
-                cout << "*** SELL SIGNAL ***\n" << endl;
-
-                ExitLong(inst);
-                m_position_map[inst_ptr] = WOBI_SIDE_FLAT;
-                m_last_signal[inst_ptr] = WOBI_SIDE_FLAT;
+        // Log if we would have triggered a buy but are blocked by existing position
+        if (imbalance > m_entry_threshold) {
+            m_persistence_map[inst_ptr] += 1;
+            if (m_persistence_map[inst_ptr] >= m_persistence_len) {
+                cout << "[BLOCKED_BUY] " << inst.symbol()
+                     << " | Position=" << current_position
+                     << " | Cannot buy while holding shares"
+                     << " | I=" << std::fixed << std::setprecision(4)
+                     << imbalance << endl;
                 m_persistence_map[inst_ptr] = 0;
-            } else {
-                if (m_debug_on) {
-                    cout << "[SKIP_DUPLICATE] SELL signal already active for " << inst.symbol() << endl;
-                }
             }
+        } else {
+            m_persistence_map[inst_ptr] = 0;
+        }
+
+        // Check for sell signal
+        if (imbalance < m_exit_threshold) {
+            cout << "\n*** SELL SIGNAL ***" << endl;
+            cout << "[SIGNAL] " << event_time << " | ACTION=SELL"
+                 << " | SYMBOL=" << inst.symbol()
+                 << " | SIZE=" << current_position  // Sell entire position
+                 << " | IMBALANCE=" << std::fixed << std::setprecision(4)
+                 << imbalance << " | EXIT_THRESHOLD=" << m_exit_threshold
+                 << endl;
+            cout << "*** SELL SIGNAL ***\n" << endl;
+
+            ExitLong(inst);
+            m_persistence_map[inst_ptr] = 0;
         }
     }
 }
@@ -450,39 +397,64 @@ void WobiSignalStrategy::EvaluateImbalanceSignal(const Instrument& inst,
  *   Order Helpers
  *===========================================================*/
 
-void WobiSignalStrategy::EnterLong(const Instrument& inst)
-{
-    cout << "[ORDER] ENTERING LONG POSITION"
-         << " | Symbol=" << inst.symbol()
-         << " | Size=" << m_position_size
-         << " | Side=BUY"
-         << endl;
+void WobiSignalStrategy::EnterLong(const Instrument& inst) {
+    // Get expected fill price (best ask for buys)
+    double expected_price = inst.top_quote().ask();
 
-    // When you are ready to send real orders, uncomment and
-    // ensure the signature matches Strategy Studio version:
-    //
-    // OrderID id = trade_actions()->SendNewMarketOrder(
-    //     inst,
-    //     ORDER_SIDE_BUY,
-    //     m_position_size);
-    //
-    // m_instrument_order_id_map[&inst] = id;
+    cout << "[ORDER] ENTERING LONG POSITION"
+         << " | Symbol=" << inst.symbol() << " | Size=" << m_position_size
+         << " | Side=BUY"
+         << " | TIF=FOK"
+         << " | ExpectedPrice=" << std::fixed << std::setprecision(2)
+         << expected_price << " | LatencyNs=" << m_latency_ns << endl;
+
+    // Create order params for market buy with Fill-or-Kill
+    OrderParams params(
+        inst, m_position_size,
+        0.0,                   // price (not used for market orders)
+        MARKET_CENTER_ID_IEX,  // default market center
+        ORDER_SIDE_BUY,
+        ORDER_TIF_FOK,  // Fill or Kill - all shares must fill or cancel
+        ORDER_TYPE_MARKET);
+
+    TradeActionResult result = trade_actions()->SendNewOrder(params);
+
+    if (result == TRADE_ACTION_RESULT_SUCCESSFUL) {
+        m_instrument_order_id_map[&inst] = params.order_id;
+        cout << "[ORDER] BUY order sent successfully | OrderID="
+             << params.order_id << endl;
+    } else {
+        cout << "[ORDER] BUY order FAILED | Result=" << result << endl;
+    }
 }
 
-void WobiSignalStrategy::ExitLong(const Instrument& inst)
-{
-    cout << "[ORDER] EXITING LONG POSITION"
-         << " | Symbol=" << inst.symbol()
-         << " | Size=" << m_position_size
-         << " | Side=SELL"
-         << endl;
+void WobiSignalStrategy::ExitLong(const Instrument& inst) {
+    // Get expected fill price (best bid for sells)
+    double expected_price = inst.top_quote().bid();
 
-    // Likewise, uncomment when ready:
-    //
-    // OrderID id = trade_actions()->SendNewMarketOrder(
-    //     inst,
-    //     ORDER_SIDE_SELL,
-    //     m_position_size);
-    //
-    // m_instrument_order_id_map[&inst] = id;
+    cout << "[ORDER] EXITING LONG POSITION"
+         << " | Symbol=" << inst.symbol() << " | Size=" << m_position_size
+         << " | Side=SELL"
+         << " | TIF=GTC"
+         << " | ExpectedPrice=" << std::fixed << std::setprecision(2)
+         << expected_price << " | LatencyNs=" << m_latency_ns << endl;
+
+    // Create order params for market sell with Good-Till-Cancelled
+    OrderParams params(
+        inst, m_position_size,
+        0.0,                   // price (not used for market orders)
+        MARKET_CENTER_ID_IEX,  // default market center
+        ORDER_SIDE_SELL,
+        ORDER_TIF_GTC,  // Good Till Cancelled - stays until filled
+        ORDER_TYPE_MARKET);
+
+    TradeActionResult result = trade_actions()->SendNewOrder(params);
+
+    if (result == TRADE_ACTION_RESULT_SUCCESSFUL) {
+        m_instrument_order_id_map[&inst] = params.order_id;
+        cout << "[ORDER] SELL order sent successfully | OrderID="
+             << params.order_id << endl;
+    } else {
+        cout << "[ORDER] SELL order FAILED | Result=" << result << endl;
+    }
 }
